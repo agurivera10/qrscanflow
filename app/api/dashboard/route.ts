@@ -80,6 +80,10 @@ function isHumanScan(event: ScanEvent) {
   return event.event_type === "qr.scan" && event.metadata?.likely_bot !== true;
 }
 
+function isConversationConversion(conversion: Conversion) {
+  return /conversation|message/i.test(conversion.conversion_type);
+}
+
 function addCount(map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) || 0) + 1);
 }
@@ -114,7 +118,7 @@ export async function GET() {
       }),
       rest<ScanEvent>("events", {
         workspace_id: `eq.${workspace.id}`,
-        event_type: "in.(qr.scan,qr.redirect,qr.preview)",
+        event_type: "in.(qr.scan,qr.redirect,qr.preview,whatsapp.message_received)",
         select: "id,qr_code_id,campaign_id,event_type,occurred_at,visitor_id,country,city,device_type,os,browser,is_exact,metadata",
         order: "occurred_at.desc",
         limit: "10000",
@@ -132,13 +136,15 @@ export async function GET() {
     const scans = events.filter(isHumanScan);
     const redirects = events.filter((event) => event.event_type === "qr.redirect" && event.metadata?.likely_bot !== true);
     const uniqueVisitors = new Set(scans.map((event) => event.visitor_id).filter(Boolean)).size;
-    const revenue = conversions.reduce((sum, conversion) => sum + Number(conversion.value || 0), 0);
-    const conversations = conversions.filter((conversion) => /conversation|message|whatsapp/i.test(conversion.conversion_type)).length;
+    const conversationConversions = conversions.filter(isConversationConversion);
+    const businessConversions = conversions.filter((conversion) => !isConversationConversion(conversion));
+    const revenue = businessConversions.reduce((sum, conversion) => sum + Number(conversion.value || 0), 0);
+    const conversations = conversationConversions.length;
 
     const scansByQr = new Map<string, number>();
     const conversionsByQr = new Map<string, number>();
     for (const event of scans) if (event.qr_code_id) addCount(scansByQr, event.qr_code_id);
-    for (const conversion of conversions) if (conversion.qr_code_id) addCount(conversionsByQr, conversion.qr_code_id);
+    for (const conversion of businessConversions) if (conversion.qr_code_id) addCount(conversionsByQr, conversion.qr_code_id);
 
     const qrSummaries = qrs.map((qr) => ({
       id: qr.id,
@@ -189,6 +195,7 @@ export async function GET() {
       .slice(0, 40)
       .map((event) => {
         const qr = event.qr_code_id ? qrMap.get(event.qr_code_id) : undefined;
+        const attributionConfidence = typeof event.metadata?.attribution_confidence === "string" ? event.metadata.attribution_confidence : null;
         return {
           id: event.id,
           eventType: event.event_type,
@@ -200,7 +207,7 @@ export async function GET() {
           device: event.device_type,
           os: event.os,
           browser: event.browser,
-          confidence: event.is_exact ? "Exact" : "Estimated",
+          confidence: attributionConfidence?.startsWith("derived") ? "Derived" : event.is_exact ? "Exact" : "Estimated",
         };
       });
 
@@ -212,9 +219,9 @@ export async function GET() {
           redirects: redirects.length,
           uniqueVisitors,
           conversations,
-          conversions: conversions.length,
+          conversions: businessConversions.length,
           revenue,
-          currency: conversions.find((conversion) => conversion.currency)?.currency || "ARS",
+          currency: businessConversions.find((conversion) => conversion.currency)?.currency || "ARS",
         },
         qrs: qrSummaries,
         campaigns: campaignSummaries,
