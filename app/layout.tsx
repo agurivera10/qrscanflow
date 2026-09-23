@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./analytics-platform.css";
+import "./analytics-live.css";
 
 export const metadata: Metadata = {
   title: "ScanFlow — QR Analytics",

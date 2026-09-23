@@ -59,7 +59,7 @@ function cookieValue(req: Request, name: string) {
 function randomToken(length = 7) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return Array.from(bytes, b => alphabet[b % alphabet.length]).join("");
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
 function stableBucket(input: string) {
@@ -107,10 +107,15 @@ function matches(rule: RoutingRule, context: { country: string | null; region: s
   return true;
 }
 
-function applyRouting(baseUrl: string, rules: unknown, context: { country: string | null; region: string | null; city: string | null; device: string; localHour: number }, visitorId: string) {
+function applyRouting(
+  baseUrl: string,
+  rules: unknown,
+  context: { country: string | null; region: string | null; city: string | null; device: string; localHour: number },
+  visitorId: string,
+) {
   if (!Array.isArray(rules) || rules.length === 0) return { url: baseUrl, ruleId: null as string | null };
   const ordered = (rules as RoutingRule[])
-    .filter(rule => rule?.enabled !== false && Boolean(rule?.destinationUrl))
+    .filter((rule) => rule?.enabled !== false && Boolean(rule?.destinationUrl))
     .sort((a, b) => (a.priority || 0) - (b.priority || 0));
 
   for (const rule of ordered) {
@@ -135,7 +140,7 @@ async function requestHash(req: Request) {
     ["sign"],
   );
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${ip}|${ua}`));
-  return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(signature)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function resolveDestination(slug: string): Promise<Resolution | null> {
@@ -160,21 +165,6 @@ async function resolveUnit(token: string | null, workspaceId: string): Promise<U
   if (!res.ok) return null;
   const rows = await res.json() as UnitResolution[];
   return rows[0] || null;
-}
-
-function attachWhatsAppTrackingRef(url: string, ref: string) {
-  try {
-    const target = new URL(url);
-    const whatsappHost = target.hostname === "wa.me" || target.hostname.endsWith("whatsapp.com");
-    if (!whatsappHost) return url;
-    const existing = target.searchParams.get("text") || "";
-    if (!existing.includes("[SF:")) {
-      target.searchParams.set("text", `${existing}${existing ? "\n\n" : ""}[SF:${ref}]`);
-    }
-    return target.toString();
-  } catch {
-    return url;
-  }
 }
 
 async function persistEvents(events: Record<string, unknown>[]) {
@@ -231,8 +221,10 @@ Deno.serve(async (req: Request) => {
       visitorId,
     );
 
+    // Internal reference remains available in event metadata, but it is no longer
+    // appended to WhatsApp text. Customer-facing messages stay clean.
     const trackingRef = randomToken(7);
-    const finalUrl = bot ? routed.url : attachWhatsAppTrackingRef(routed.url, trackingRef);
+    const finalUrl = routed.url;
     const unitToken = incoming.searchParams.get("u");
     const unit = await resolveUnit(unitToken, resolution.workspace_id);
     const now = new Date().toISOString();
@@ -266,6 +258,7 @@ Deno.serve(async (req: Request) => {
       slug,
       unit_token: unitToken,
       tracking_ref: trackingRef,
+      tracking_ref_visible: false,
       routing_rule_id: routed.ruleId,
       geo_source: "vercel_ip_headers",
       geo_is_approximate: true,
