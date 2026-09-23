@@ -9,7 +9,7 @@ printed QR
   ↓
 /r/[slug]?u=<optional serialized unit token>
   ↓
-resolve current QR version
+resolve current QR version + physical unit/batch
   ↓
 apply routing rules / experiment split
   ↓
@@ -30,6 +30,7 @@ ScanFlow must never present estimated signals as exact facts.
 - QR / version / campaign / distribution identifiers encoded or resolved by ScanFlow
 - selected routing rule
 - destination selected
+- WhatsApp message joined through a ScanFlow tracking reference
 - webhook events received from an authenticated integration
 - order/revenue events sent to the authenticated ingest API
 
@@ -38,6 +39,7 @@ ScanFlow must never present estimated signals as exact facts.
 - deduplication when cookies are unavailable
 - city / region / lat / lon derived from Vercel network headers
 - device, OS and browser parsed from user agent
+- WhatsApp conversations where the tracking reference was deleted before sending
 
 GPS-level location is never collected unless a future explicit-consent experience asks the user for browser geolocation permission.
 
@@ -48,6 +50,7 @@ GPS-level location is never collected unless a future explicit-consent experienc
 - The raw IP is discarded immediately after hashing.
 - `sf_vid` is a first-party HTTP-only pseudonymous visitor ID.
 - `sf_sid` is a 30-minute first-party session ID.
+- WhatsApp contact phone numbers are converted to a stable HMAC before analytics persistence.
 - Dashboard tables use workspace-scoped RLS.
 - Public redirect ingestion uses a server-only Supabase secret; no anon insert policy exists for telemetry.
 
@@ -74,14 +77,23 @@ For shared QR mode every physical piece uses the same URL:
 /r/milanga-folleto
 ```
 
-For serialized mode each piece can additionally carry a unit token:
+For serialized mode each piece additionally carries a unit token:
 
 ```text
 /r/milanga-folleto?u=4FQ9K2
 /r/milanga-folleto?u=8M1D7P
 ```
 
-This allows ScanFlow to attribute scans to individual physical units while keeping the same campaign/QR identity.
+The redirect resolves that public token to `distribution_unit_id` and `distribution_batch_id`, so every scan can be attributed to the exact printed unit when serialized mode is used.
+
+Authenticated batch generation is available at:
+
+```text
+POST /api/serialize
+Authorization: Bearer <SCANFLOW_INGEST_KEY>
+```
+
+It can create up to 10,000 serialized units per request.
 
 ## Smart routing
 
@@ -103,7 +115,7 @@ The Meta webhook endpoint is available at:
 
 It supports webhook verification, optional request-signature verification, incoming message events, and outbound message status events.
 
-Important: a plain `wa.me` scan and a later inbound WhatsApp message do not automatically share a universal Meta click ID. Exact scan → message attribution therefore needs an attribution reference carried into the conversation (for example a short `[SF:token]` marker in the prefilled message) or another explicit linking mechanism. ScanFlow should label unlinked WhatsApp attribution as estimated/aggregate rather than fabricate a 1:1 join.
+When a routed destination is WhatsApp, ScanFlow appends a short marker such as `[SF:8K2QF7A]` to the prefilled message. The redirect event stores the same marker. If the customer sends the message with that marker intact, the webhook resolves the originating `qr.redirect` event and joins the exact QR, visitor/session and conversion. If the marker is edited away, ScanFlow records the conversation as unlinked rather than fabricating attribution.
 
 ## External business events
 
@@ -116,9 +128,30 @@ Authorization: Bearer <SCANFLOW_INGEST_KEY>
 
 Supported payload kinds are `event` and `conversion`.
 
+## Destination health
+
+Authenticated health checks are available at:
+
+```text
+POST /api/health/destinations
+Authorization: Bearer <SCANFLOW_INGEST_KEY>
+```
+
+Checks are protected against private-network targets to reduce SSRF risk. Health status is written back to `destinations` and failed checks create alerts. Scheduling can be attached to the endpoint once the production Vercel plan/cadence is chosen.
+
+## QR safety
+
+The current Studio safety score is explicitly a **preflight heuristic** based on print size, contrast assumptions, quiet zone and high error correction. It must not be presented as a real decoder simulation. A future QR QA Lab can add real multi-decoder image transforms (blur, perspective, compression, low-light simulation) before an asset receives a print-certified status.
+
+## Supabase security
+
+Migrations enable RLS on all exposed tables and then apply a second hardening migration with explicit Data API grants. Membership checks are performed through narrowly scoped `SECURITY DEFINER` helpers in the non-exposed `private` schema to avoid recursive RLS between `workspaces` and `workspace_members`. The functions explicitly require `auth.uid()` and are not exposed through the public API schema.
+
+After migrations are applied to the new project, run Supabase security and performance advisors and resolve all relevant findings before production data is enabled.
+
 ## Supabase connection
 
-Apply `supabase/migrations/20260923193000_scanflow_core.sql`, then configure Vercel with:
+Apply the migrations under `supabase/migrations/`, then configure Vercel with:
 
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY`
