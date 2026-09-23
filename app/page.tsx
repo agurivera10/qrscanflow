@@ -1,5 +1,5 @@
-import Dashboard from "./components/dashboard";
+import ScanFlowPlatform from "./components/scanflow-platform";
 
 export default function Home() {
-  return <Dashboard />;
+  return <ScanFlowPlatform />;
 }
