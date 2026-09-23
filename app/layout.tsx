@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "./scanflow.css";
-import "./scanflow-overrides.css";
+import "./analytics-platform.css";
 
 export const metadata: Metadata = {
-  title: "ScanFlow — Physical Attribution Intelligence",
-  description: "Turn every physical QR touchpoint into a measurable acquisition channel, from scan to conversation, order and revenue.",
+  title: "ScanFlow — QR Analytics",
+  description: "Analytics and attribution for physical and virtual QR codes, from scan to conversion and attributed revenue.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
