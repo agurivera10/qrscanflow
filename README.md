@@ -1,50 +1,70 @@
 # ScanFlow
 
-QR analytics and redirect platform. Create permanent, trackable QR links that can route to WhatsApp or any URL while measuring scan activity.
+**Physical Attribution Intelligence.** ScanFlow turns printed QR touchpoints into measurable acquisition channels: scan → redirect → conversation → order → attributed revenue.
 
-## Current MVP
+## Product modules
 
-- Premium analytics dashboard preview
-- Trackable redirect route: `/r/[slug]`
-- WhatsApp deep-link support with prefilled messages
-- Approximate Vercel geo metadata (country / region / city when available)
-- QR preview generation and PNG download
-- No visitor IP persistence
-- Demo MILANGA QR at `/r/milanga-folleto`
+- **Command Center** — funnel, live activity, physical channels, heatmaps and health
+- **QR Inventory** — permanent endpoints, versions and safety scores
+- **QR Studio** — branded modules/eyes/colors, CTA frames, print sizing and SVG export
+- **Campaigns** — group assets, QR, objectives and outcomes
+- **Distribution** — print batches, geography, quantities, cost, response and physical ROAS
+- **Analytics** — time, approximate geography, device and repeat behavior
+- **Conversions** — scan-to-business-outcome attribution
+- **Experiments** — deterministic A/B routing
+- **Live** — event stream and real-time signal view
+- **Integrations** — Supabase, WhatsApp Business Platform, Vercel and webhooks
 
-## Stack
+## Tracking architecture
 
-- Next.js 16 (App Router)
-- React 19
-- TypeScript
-- Vercel
-- Supabase (next integration step)
+```text
+Printed QR
+  ↓
+/r/[slug]?u=<optional serialized physical unit>
+  ↓
+permanent QR identity + current version
+  ↓
+smart routing / A-B allocation
+  ↓
+qr.scan + qr.redirect telemetry
+  ↓
+WhatsApp / URL / landing
+  ↓
+webhooks / ingest API
+  ↓
+conversation → order → revenue
+```
 
-## Local development
+The printed QR remains valid while its destination can be versioned or changed in ScanFlow.
+
+## Privacy
+
+ScanFlow intentionally does **not** persist raw IP addresses. Approximate deduplication uses a daily HMAC created in memory and first-party pseudonymous visitor/session IDs. Vercel network geolocation is treated as approximate, never as GPS.
+
+## Backend
+
+The Supabase schema is defined in:
+
+`supabase/migrations/20260923193000_scanflow_core.sql`
+
+It includes multi-workspace RLS, campaigns, destinations, QR/version history, distribution batches, serialized units, experiments, append-only events, conversions, integrations and alerts.
+
+## APIs
+
+- `GET /r/[slug]` — tracked redirect
+- `POST /api/ingest` — authenticated event/conversion ingestion
+- `GET|POST /api/webhooks/whatsapp` — WhatsApp Business Platform verification + webhook
+
+## Environment
+
+Copy `.env.example`. The new isolated Supabase project can be connected later without changing the application architecture.
+
+## Development
 
 ```bash
 npm install
 npm run dev
+npm run build
 ```
 
-Then open `http://localhost:3000`.
-
-## Architecture
-
-```text
-Printed QR
-   ↓
-/r/[slug]
-   ↓
-Scan event (timestamp + coarse geo + device metadata)
-   ↓
-Destination resolver
-   ↓
-WhatsApp / URL
-```
-
-The redirect URL is what is encoded in the printed QR. The final destination can later be changed without changing the physical QR.
-
-## Next milestone
-
-Replace the temporary demo redirect map and runtime logging with Supabase-backed workspaces, campaigns, QR codes, destinations and scan events. Add authentication and make dashboard metrics live.
+See `docs/ARCHITECTURE.md` for event confidence, privacy, serialization, routing and WhatsApp attribution details.
