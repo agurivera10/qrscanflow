@@ -4,7 +4,7 @@ import { assertPublicHttpUrl } from "@/lib/url-safety";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Destination = { id: string; workspace_id: string; name: string; url: string | null; kind: string; config: Record<string, unknown> };
+type Destination = { id: string; workspace_id: string; name: string; url: string | null; phone: string | null; kind: string; config: Record<string, unknown> };
 
 function authHeaders() {
   const secret = process.env.SUPABASE_SECRET_KEY;
@@ -13,10 +13,7 @@ function authHeaders() {
 
 function resolvedUrl(destination: Destination) {
   if (destination.url) return destination.url;
-  if (destination.kind === "whatsapp") {
-    const phone = typeof destination.config?.phone === "string" ? destination.config.phone : null;
-    return phone ? `https://wa.me/${phone}` : null;
-  }
+  if (destination.kind === "whatsapp" && destination.phone) return `https://wa.me/${destination.phone.replace(/\D/g, "")}`;
   return null;
 }
 
@@ -41,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   const workspaceId = request.nextUrl.searchParams.get("workspace_id");
   const query = new URL(`${base}/rest/v1/destinations`);
-  query.searchParams.set("select", "id,workspace_id,name,url,kind,config");
+  query.searchParams.set("select", "id,workspace_id,name,url,phone,kind,config");
   if (workspaceId) query.searchParams.set("workspace_id", `eq.${workspaceId}`);
   const res = await fetch(query, { headers, cache: "no-store" });
   if (!res.ok) return NextResponse.json({ error: await res.text() }, { status: 502 });
@@ -71,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (state === "down") {
       await fetch(`${base}/rest/v1/alerts`, {
         method: "POST",
-        headers: { ...headers, "Content-Type": "application/json", Prefer: "return=minimal,resolution=merge-duplicates" },
+        headers: { ...headers, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({ workspace_id: destination.workspace_id, kind: "destination_down", severity: "critical", title: `${destination.name} is unavailable`, body: error || `Health check returned ${status ?? "no status"}`, status: "open" }),
         cache: "no-store",
       });
