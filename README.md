@@ -19,9 +19,11 @@ ScanFlow is intentionally **not** a design platform. It does not manage flyer de
 ```text
 Physical or virtual QR
   ↓
-/r/[slug]?u=<optional serialized unit>
+Vercel /r/[slug]?u=<optional serialized unit>
   ↓
-ScanFlow resolves the active destination
+Supabase Edge scan-redirect
+  ↓
+Resolve active QR + routing rules
   ↓
 qr.scan + qr.redirect telemetry
   ↓
@@ -32,6 +34,8 @@ webhooks / ingest API
 conversation → conversion → attributed revenue
 ```
 
+The public Vercel route forwards Vercel's approximate IP-geolocation headers to the Supabase Edge tracking runtime. Privileged database access remains inside Supabase; no Supabase secret key is required in the Vercel redirect route.
+
 A QR only exists when it exists in the database. There are no demo redirect fallbacks.
 
 ## Data principles
@@ -40,17 +44,20 @@ A QR only exists when it exists in the database. There are no demo redirect fall
 - Network-derived location is approximate and must never be presented as GPS.
 - First-party visitor/session IDs are pseudonymous.
 - Metrics distinguish **Exact**, **Estimated** and **Derived** signals.
-- The initial MILANGA workspace starts with zero QRs, zero campaigns and zero events.
+- The initial live MILANGA catalog includes the `milanga-folleto` QR and its WhatsApp destination; analytics starts clean with zero real events until the first production scan.
 
 ## Backend
 
 Supabase stores workspaces, campaigns, destinations, QR codes, versions, optional serialized units, events, conversions, experiments, integrations and alerts.
 
+The public redirect logic runs in `supabase/functions/scan-redirect/` and writes tracking events server-side.
+
 Primary migration files live in `supabase/migrations/`.
 
 ## APIs
 
-- `GET /r/[slug]` — tracked redirect for a real QR stored in Supabase
+- `GET /r/[slug]` — public Vercel entrypoint for a tracked QR
+- `GET /functions/v1/scan-redirect?slug=...` — Supabase Edge tracking + redirect runtime
 - `POST /api/ingest` — authenticated event/conversion ingestion
 - `POST /api/serialize` — optional bulk serialized QR-unit creation
 - `GET|POST /api/webhooks/whatsapp` — WhatsApp Business Platform verification and webhook
@@ -58,7 +65,7 @@ Primary migration files live in `supabase/migrations/`.
 
 ## Environment
 
-Copy `.env.example` and configure the isolated Supabase project plus tracking/integration secrets.
+Copy `.env.example` and configure the isolated Supabase project plus tracking/integration secrets used by the remaining protected APIs. The public QR redirect path does not need a Supabase secret in Vercel.
 
 ## Development
 
