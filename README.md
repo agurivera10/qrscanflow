@@ -1,70 +1,69 @@
 # ScanFlow
 
-**Physical Attribution Intelligence.** ScanFlow turns printed QR touchpoints into measurable acquisition channels: scan → redirect → conversation → order → attributed revenue.
+**QR Analytics & Attribution.** ScanFlow measures physical and virtual QR codes from scan to conversion and attributed revenue.
 
-## Product modules
+ScanFlow is intentionally **not** a design platform. It does not manage flyer design, print artwork, templates or creative production. Its job is to answer what happened after a QR was distributed.
 
-- **Command Center** — funnel, live activity, physical channels, heatmaps and health
-- **QR Inventory** — permanent endpoints, versions and safety scores
-- **QR Studio** — branded modules/eyes/colors, CTA frames, print sizing and SVG export
-- **Campaigns** — group assets, QR, objectives and outcomes
-- **Distribution** — print batches, geography, quantities, cost, response and physical ROAS
+## Core product
+
+- **Overview** — qualified scans, visitors, conversions and attributed value
+- **QRs** — inventory of tracked QR codes and their status
+- **Campaigns** — optional grouping for related QR actions
 - **Analytics** — time, approximate geography, device and repeat behavior
-- **Conversions** — scan-to-business-outcome attribution
-- **Experiments** — deterministic A/B routing
-- **Live** — event stream and real-time signal view
-- **Integrations** — Supabase, WhatsApp Business Platform, Vercel and webhooks
+- **Live** — raw event stream
+- **Conversions** — conversations, orders and revenue linked back to QR activity
+- **Settings** — workspace, integrations, privacy and data quality
 
-## Tracking architecture
+## Tracking flow
 
 ```text
-Printed QR
+Physical or virtual QR
   ↓
-/r/[slug]?u=<optional serialized physical unit>
+/r/[slug]?u=<optional serialized unit>
   ↓
-permanent QR identity + current version
-  ↓
-smart routing / A-B allocation
+ScanFlow resolves the active destination
   ↓
 qr.scan + qr.redirect telemetry
   ↓
-WhatsApp / URL / landing
+WhatsApp / URL / landing page
   ↓
 webhooks / ingest API
   ↓
-conversation → order → revenue
+conversation → conversion → attributed revenue
 ```
 
-The printed QR remains valid while its destination can be versioned or changed in ScanFlow.
+A QR only exists when it exists in the database. There are no demo redirect fallbacks.
 
-## Privacy
+## Data principles
 
-ScanFlow intentionally does **not** persist raw IP addresses. Approximate deduplication uses a daily HMAC created in memory and first-party pseudonymous visitor/session IDs. Vercel network geolocation is treated as approximate, never as GPS.
+- Raw IP addresses are never persisted.
+- Network-derived location is approximate and must never be presented as GPS.
+- First-party visitor/session IDs are pseudonymous.
+- Metrics distinguish **Exact**, **Estimated** and **Derived** signals.
+- The initial MILANGA workspace starts with zero QRs, zero campaigns and zero events.
 
 ## Backend
 
-The Supabase schema is defined in:
+Supabase stores workspaces, campaigns, destinations, QR codes, versions, optional serialized units, events, conversions, experiments, integrations and alerts.
 
-`supabase/migrations/20260923193000_scanflow_core.sql`
-
-It includes multi-workspace RLS, campaigns, destinations, QR/version history, distribution batches, serialized units, experiments, append-only events, conversions, integrations and alerts.
+Primary migration files live in `supabase/migrations/`.
 
 ## APIs
 
-- `GET /r/[slug]` — tracked redirect
+- `GET /r/[slug]` — tracked redirect for a real QR stored in Supabase
 - `POST /api/ingest` — authenticated event/conversion ingestion
-- `GET|POST /api/webhooks/whatsapp` — WhatsApp Business Platform verification + webhook
+- `POST /api/serialize` — optional bulk serialized QR-unit creation
+- `GET|POST /api/webhooks/whatsapp` — WhatsApp Business Platform verification and webhook
+- `/api/health/*` — destination health checks
 
 ## Environment
 
-Copy `.env.example`. The new isolated Supabase project can be connected later without changing the application architecture.
+Copy `.env.example` and configure the isolated Supabase project plus tracking/integration secrets.
 
 ## Development
 
 ```bash
 npm install
-npm run dev
+npm run lint
 npm run build
 ```
-
-See `docs/ARCHITECTURE.md` for event confidence, privacy, serialization, routing and WhatsApp attribution details.
