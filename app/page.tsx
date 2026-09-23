@@ -1,5 +1,5 @@
-import ScanFlowPlatform from "./components/scanflow-platform";
+import AnalyticsPlatform from "./components/analytics-platform";
 
 export default function Home() {
-  return <ScanFlowPlatform />;
+  return <AnalyticsPlatform />;
 }
