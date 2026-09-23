@@ -1,0 +1,26 @@
+-- Cover foreign keys flagged by Supabase database advisors.
+create index if not exists alerts_workspace_id_idx on public.alerts(workspace_id);
+create index if not exists alerts_qr_code_id_idx on public.alerts(qr_code_id);
+create index if not exists campaigns_workspace_id_idx on public.campaigns(workspace_id);
+create index if not exists conversions_source_event_id_idx on public.conversions(source_event_id);
+create index if not exists destinations_workspace_id_idx on public.destinations(workspace_id);
+create index if not exists distribution_batches_campaign_id_idx on public.distribution_batches(campaign_id);
+create index if not exists distribution_batches_qr_code_id_idx on public.distribution_batches(qr_code_id);
+create index if not exists distribution_units_qr_code_id_idx on public.distribution_units(qr_code_id);
+create index if not exists distribution_units_workspace_id_idx on public.distribution_units(workspace_id);
+create index if not exists events_campaign_id_idx on public.events(campaign_id);
+create index if not exists events_distribution_unit_id_idx on public.events(distribution_unit_id);
+create index if not exists events_experiment_id_idx on public.events(experiment_id);
+create index if not exists events_qr_version_id_idx on public.events(qr_version_id);
+create index if not exists events_variant_id_idx on public.events(variant_id);
+create index if not exists experiment_variants_destination_id_idx on public.experiment_variants(destination_id);
+create index if not exists experiment_variants_experiment_id_idx on public.experiment_variants(experiment_id);
+create index if not exists experiment_variants_workspace_id_idx on public.experiment_variants(workspace_id);
+create index if not exists experiments_qr_code_id_idx on public.experiments(qr_code_id);
+create index if not exists experiments_workspace_id_idx on public.experiments(workspace_id);
+create index if not exists qr_codes_campaign_id_idx on public.qr_codes(campaign_id);
+create index if not exists qr_codes_current_version_id_idx on public.qr_codes(current_version_id);
+create index if not exists qr_versions_destination_id_idx on public.qr_versions(destination_id);
+create index if not exists qr_versions_workspace_id_idx on public.qr_versions(workspace_id);
+create index if not exists workspace_members_user_id_idx on public.workspace_members(user_id);
+create index if not exists workspaces_owner_id_idx on public.workspaces(owner_id);
