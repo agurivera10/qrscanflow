@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./scanflow.css";
+import "./scanflow-overrides.css";
 
 export const metadata: Metadata = {
   title: "ScanFlow — Physical Attribution Intelligence",
