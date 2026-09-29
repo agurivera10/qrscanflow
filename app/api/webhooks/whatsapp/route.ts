@@ -8,6 +8,11 @@ const ATTRIBUTION_WINDOW_MINUTES = 30;
 const CONTACT_CONTINUITY_DAYS = 7;
 const CONVERSATION_WINDOW_HOURS = 24;
 
+// Public Supabase connection details. This key is intentionally publishable and RLS only
+// permits tightly validated inserts into MILANGA's web checkout attribution bridge.
+const MILANGA_SUPABASE_URL = "https://hajgswieugosgqxrbwhe.supabase.co";
+const MILANGA_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_zEljznRiq5gG1GcExAN5EA_EELwGu2p";
+
 type WaOrderItem = {
   product_retailer_id?: string;
   quantity?: number | string;
@@ -100,6 +105,45 @@ function normalizeText(value: string) {
 
 function occurredAt(timestamp?: string) {
   return timestamp ? new Date(Number(timestamp) * 1000).toISOString() : new Date().toISOString();
+}
+
+function normalizeMilangaPhone(value?: string) {
+  let digits = (value || "").replace(/\D/g, "").replace(/^0+/, "");
+  if (/^549\d{10}$/.test(digits)) return digits;
+  if (/^54\d{10}$/.test(digits)) return `549${digits.slice(2)}`;
+  if (/^\d{10}$/.test(digits)) return `549${digits}`;
+  return digits;
+}
+
+function extractMilangaCheckoutRef(body?: string) {
+  const match = body?.match(/Ref\.\s*web:\s*(ML-[A-F0-9]{8,16})/i);
+  return match?.[1]?.toUpperCase() || null;
+}
+
+async function persistMilangaCheckoutContact(message: WaMessage, at: string) {
+  const checkoutRef = extractMilangaCheckoutRef(message.text?.body);
+  if (!checkoutRef) return;
+  const phone = normalizeMilangaPhone(message.from);
+  if (!/^\d{10,15}$/.test(phone)) return;
+
+  const response = await fetch(`${MILANGA_SUPABASE_URL}/rest/v1/web_checkout_contacts`, {
+    method: "POST",
+    headers: {
+      apikey: MILANGA_SUPABASE_PUBLISHABLE_KEY,
+      "Content-Type": "application/json",
+      Prefer: "resolution=ignore-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      checkout_ref: checkoutRef,
+      phone_norm: phone,
+      whatsapp_message_id: message.id || "",
+      received_at: at,
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    console.error("scanflow.milanga_checkout_contact_failed", response.status, await response.text());
+  }
 }
 
 function supabaseHeaders() {
@@ -343,14 +387,16 @@ export async function POST(request: NextRequest) {
 
   const events: Record<string, unknown>[] = [];
   const conversions: Record<string, unknown>[] = [];
+  const milangaContactWrites: Promise<void>[] = [];
 
   for (const entry of body.entry || []) for (const change of entry.changes || []) {
     const value = change.value || {};
 
     for (const message of value.messages || []) {
+      const at = occurredAt(message.timestamp);
+      milangaContactWrites.push(persistMilangaCheckoutContact(message, at));
       if (await alreadyProcessedMessage(workspaceId, message.id)) continue;
 
-      const at = occurredAt(message.timestamp);
       const hash = contactHash(message.from);
       const attribution = await resolveAttribution(workspaceId, message, hash, at);
       const templateHash = textHash(message.text?.body || "");
@@ -439,6 +485,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  await Promise.all([writeRows("events", events), writeRows("conversions", conversions)]);
+  await Promise.all([writeRows("events", events), writeRows("conversions", conversions), ...milangaContactWrites]);
   return NextResponse.json({ received: true, events: events.length, conversions: conversions.length });
 }
