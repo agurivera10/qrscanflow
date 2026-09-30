@@ -131,7 +131,7 @@ async function persistMilangaCheckoutContact(message: WaMessage, at: string) {
     headers: {
       apikey: MILANGA_SUPABASE_PUBLISHABLE_KEY,
       "Content-Type": "application/json",
-      Prefer: "resolution=ignore-duplicates,return=minimal",
+      Prefer: "return=minimal",
     },
     body: JSON.stringify({
       checkout_ref: checkoutRef,
@@ -141,7 +141,9 @@ async function persistMilangaCheckoutContact(message: WaMessage, at: string) {
     }),
     cache: "no-store",
   });
-  if (!response.ok) {
+  // Meta can retry the same webhook. The unique message id makes a 409 harmless: the
+  // first delivery already persisted the bridge row.
+  if (!response.ok && response.status !== 409) {
     console.error("scanflow.milanga_checkout_contact_failed", response.status, await response.text());
   }
 }
